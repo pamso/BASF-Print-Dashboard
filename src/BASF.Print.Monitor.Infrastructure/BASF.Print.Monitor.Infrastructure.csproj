@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../BASF.Print.Monitor.Domain/BASF.Print.Monitor.Domain.csproj" />
+  </ItemGroup>
+</Project>

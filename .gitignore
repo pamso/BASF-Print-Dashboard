@@ -55,3 +55,42 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Visual Studio
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.userprefs
+*.rsuser
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Secrets / local configuration (never commit real secrets)
+appsettings.*.local.json
+appsettings.Development.json
+*.pfx
+*.pem
+secrets.json
+.env.local
+
+# Node (if any front-end tooling is used)
+node_modules/
+
+# Publish output
+publish/
+*.pubxml.user
