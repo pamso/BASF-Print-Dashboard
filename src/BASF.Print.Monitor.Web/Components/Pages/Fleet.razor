@@ -1,0 +1,120 @@
+@page "/"
+@page "/printers"
+@implements IDisposable
+@inject PrinterService Printers
+@inject DashboardSettings Settings
+
+<PageTitle>Druckerflotte · BASF PrintBoard</PageTitle>
+<h1>Druckerflotte</h1>
+<div class="toolbar">
+    <p>Zuletzt aktualisiert <time datetime="@snapshot.RetrievedAt.ToString("O")">@Display.Timestamp(snapshot.RetrievedAt)</time></p>
+    <button type="button" @onclick="Refresh">Jetzt aktualisieren</button>
+</div>
+@{
+    var summary = PrinterService.Summarize(snapshot, Settings.TonerWarningThreshold);
+    var results = PrinterService.Filter(snapshot, search, status, location).ToArray();
+}
+<dl class="summary">
+    <div><dt>Gesamt</dt><dd>@summary.Total</dd></div>
+    <div><dt>Online</dt><dd>@summary.Online</dd></div>
+    <div><dt>Offline</dt><dd>@summary.Offline</dd></div>
+    <div><dt>Warnung</dt><dd>@summary.Warning</dd></div>
+    <div><dt>Unbekannt</dt><dd>@summary.Unknown</dd></div>
+    <div><dt>Toner niedrig</dt><dd>@summary.LowToner</dd></div>
+</dl>
+
+<h2>Inventar</h2>
+<div class="filters">
+    <label>Suche <input type="search" @bind="search" @bind:event="oninput" /></label>
+    <label>Status
+        <select @bind="status">
+            <option value="">Alle</option>
+            @foreach (var value in Enum.GetValues<PrinterStatus>())
+            {
+                <option value="@value">@Display.Status(value)</option>
+            }
+        </select>
+    </label>
+    <label>Standort
+        <select @bind="location">
+            <option value="">Alle</option>
+            @foreach (var value in snapshot.Printers.Select(printer => printer.Location).OfType<string>().Distinct().Order())
+            {
+                <option value="@value">@value</option>
+            }
+        </select>
+    </label>
+</div>
+@if (results.Length == 0)
+{
+    <p>Keine passenden Drucker gefunden.</p>
+}
+else
+{
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Druckerinventar">
+        <table>
+            <thead><tr><th>Name</th><th>IP-Adresse</th><th>Modell</th><th>Seriennummer</th><th>Asset-ID</th><th>Standort</th><th>Status</th><th>Zuletzt gesehen</th></tr></thead>
+            <tbody>
+                @foreach (var printer in results)
+                {
+                    <tr @key="printer.HostId">
+                        <td><a href="@DetailUrl(printer)">@printer.Name</a></td>
+                        <td>@printer.IpAddress</td><td>@printer.Model</td><td>@(printer.SerialNumber ?? "–")</td>
+                        <td>@(printer.AssetId ?? "–")</td><td>@(printer.Location ?? "–")</td>
+                        <td><span class="badge @printer.Status">@Display.Status(printer.Status)</span></td>
+                        <td>@Display.Timestamp(printer.LastSeen)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? Search { get; set; }
+    [SupplyParameterFromQuery] public string? Status { get; set; }
+    [SupplyParameterFromQuery] public string? Location { get; set; }
+
+    private MonitoringSnapshot snapshot = default!;
+    private string? search;
+    private PrinterStatus? status;
+    private string? location;
+    private PeriodicTimer? timer;
+
+    protected override void OnInitialized() => snapshot = Printers.GetSnapshot();
+
+    protected override void OnParametersSet()
+    {
+        search = Search;
+        status = Enum.TryParse<PrinterStatus>(Status, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+        location = Location;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        using var refreshTimer = new PeriodicTimer(Settings.RefreshInterval);
+        timer = refreshTimer;
+        while (await refreshTimer.WaitForNextTickAsync())
+        {
+            snapshot = Printers.GetSnapshot();
+            StateHasChanged();
+        }
+    }
+
+    private void Refresh() => snapshot = Printers.GetSnapshot(refresh: true);
+
+    private string DetailUrl(Printer printer) => QueryHelpers.AddQueryString(
+        $"/printers/{Uri.EscapeDataString(printer.HostId)}", new Dictionary<string, string?>
+        {
+            ["search"] = search,
+            ["status"] = status?.ToString(),
+            ["location"] = location
+        });
+
+    public void Dispose() => timer?.Dispose();
+}

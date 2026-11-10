@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="../BASF.Print.Monitor.Application/BASF.Print.Monitor.Application.csproj" />
+    <ProjectReference Include="../BASF.Print.Monitor.Infrastructure/BASF.Print.Monitor.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

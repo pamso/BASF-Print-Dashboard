@@ -1,0 +1,87 @@
+@page "/printers/{HostId}"
+@inject PrinterService Printers
+@inject DashboardSettings Settings
+
+<PageTitle>Druckerdetails · BASF PrintBoard</PageTitle>
+<a href="@BackUrl">← Zurück zum Inventar</a>
+
+@if (printer is null)
+{
+    <h1>Drucker nicht gefunden</h1>
+}
+else
+{
+    <h1>@printer.Name</h1>
+    @if (printer.Status == PrinterStatus.Offline)
+    {
+        <p class="notice">Der Drucker ist offline. Die zuletzt bekannten Daten können veraltet sein.</p>
+    }
+    <p><span class="badge @printer.Status">@Display.Status(printer.Status)</span></p>
+    <dl class="details">
+        <dt>IP-Adresse</dt><dd>@printer.IpAddress</dd>
+        <dt>Modell</dt><dd>@printer.Model</dd>
+        <dt>Seriennummer</dt><dd>@(printer.SerialNumber ?? "Nicht verfügbar")</dd>
+        <dt>Asset-ID</dt><dd>@(printer.AssetId ?? "Nicht verfügbar")</dd>
+        <dt>Standort</dt><dd>@(printer.Location ?? "Nicht verfügbar")</dd>
+        <dt>Zuletzt gesehen</dt><dd>@Display.Timestamp(printer.LastSeen, seconds: true)</dd>
+    </dl>
+
+    <h2>Verbrauchsmaterial und Zähler</h2>
+    <dl class="details">
+        <dt>Toner Schwarz</dt>
+        <dd>
+            @(printer.BlackTonerPercent is >= 0 and <= 100 ? $"{printer.BlackTonerPercent} %" : "Nicht verfügbar")
+            @if (PrinterService.IsLowToner(printer, Settings.TonerWarningThreshold))
+            {
+                <span class="badge Warning">Toner niedrig</span>
+            }
+        </dd>
+        <dt>Gesamtseiten</dt><dd>@(printer.TotalPages?.ToString() ?? "Nicht verfügbar")</dd>
+        @foreach (var tray in printer.PaperTrays)
+        {
+            <dt>@tray.Name</dt>
+            <dd><span class="@(tray.Status == PaperTrayStatus.Empty ? "badge Warning" : "")">@Display.Paper(tray.Status)</span></dd>
+        }
+    </dl>
+
+    <h2>Aktive Probleme</h2>
+    @if (printer.Problems.IsEmpty)
+    {
+        <p>Keine aktiven Probleme.</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var problem in printer.Problems.OrderByDescending(item => item.Severity).ThenByDescending(item => item.OccurredAt).Take(50))
+            {
+                <li>@problem.Name · @Display.Severity(problem.Severity) · @Display.Timestamp(problem.OccurredAt, seconds: true)</li>
+            }
+        </ul>
+        @if (printer.Problems.Length > 50)
+        {
+            <p>Weitere Probleme vorhanden.</p>
+        }
+    }
+
+    <h2>Fax</h2>
+    <p>Im Demo-Datensatz sind keine Faxdaten vorhanden. Die Verfügbarkeit am Gerät ist im PoC zu prüfen.</p>
+}
+
+@code {
+    [Parameter] public string HostId { get; set; } = "";
+    [SupplyParameterFromQuery] public string? Search { get; set; }
+    [SupplyParameterFromQuery] public string? Status { get; set; }
+    [SupplyParameterFromQuery] public string? Location { get; set; }
+
+    private Printer? printer;
+
+    private string BackUrl => QueryHelpers.AddQueryString("/printers", new Dictionary<string, string?>
+    {
+        ["search"] = Search,
+        ["status"] = Status,
+        ["location"] = Location
+    });
+
+    protected override void OnParametersSet() =>
+        printer = Printers.GetSnapshot().Printers.FirstOrDefault(item => item.HostId == HostId);
+}
